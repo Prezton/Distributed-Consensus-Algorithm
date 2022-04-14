@@ -51,6 +51,7 @@ public class UserNode {
     }
 
     public static void decisionHandler(String srcName, MyMessage myMessage) {
+        System.out.println("decisionHandler: decision about " + srcName + " is " + myMessage.boolResult);
         boolean commitDecision = myMessage.boolResult;
         if (commitDecision) {
             // If decision is commit, delete local file

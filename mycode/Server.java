@@ -85,7 +85,7 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void voteHandler(String srcAddr, MyMessage myMessage) {
         String collageName = myMessage.collageName;
-        System.out.println("voteHandler: " + collageName);
+        System.out.println("voteHandler: vote from " + srcAddr + " about " + collageName + " is "+ myMessage.boolResult);
 
         if (processMap.containsKey(collageName)) {
             CommitProcess currentProcess = processMap.get(collageName);
@@ -93,7 +93,8 @@ public class Server implements ProjectLib.CommitServing {
             if (voteResult == false) {
                 boolean decision = false;
                 sendDecision(decision, currentProcess);
-                processMap.remove(collageName);
+                // SHOULD NOT REMOVE NOW, NOT DONE YET!!!
+                // processMap.remove(collageName);
                 return;
             }
             currentProcess.voteResult.put(srcAddr, voteResult);
@@ -107,6 +108,7 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void sendDecision(boolean decision, CommitProcess currentProcess) {
+        System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName);
 
         if (decision) {
             // SAVE COLLAGE LOCALLY
@@ -144,7 +146,7 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void ackHandler(String srcAddr, MyMessage myMessage) {
         String collageName = myMessage.collageName;
-        System.out.println("ackHandler: " + collageName);
+        System.out.println("ackHandler: ack about " + collageName + " from " + srcAddr);
         CommitProcess currentProcess = null;
         if (processMap.containsKey(collageName)) {
             currentProcess = processMap.get(collageName);
@@ -159,6 +161,7 @@ public class Server implements ProjectLib.CommitServing {
         }
         if (checkACK(ackMap)) {
             // COMMIT FINISHED
+            System.out.println("COMMIT DONE: " + collageName);
             processMap.remove(collageName);
         }
     }
