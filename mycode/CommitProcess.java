@@ -1,19 +1,30 @@
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CommitProcess {
     public String collageName;
     public byte[] collageContent;
     public String[] sources;
-    // user id: filename map which composes the collage candidate
-    public HashMap<String, ArrayList<String>> userMap;
-    public HashMap<String, Boolean> voteResult;
+
+    // {user id: filenames} map which composes the collage candidate
+    public ConcurrentHashMap<String, ArrayList<String>> userMap;
+
+    // {user id: voteResult(boolean)} map which contributes to commit decision
+    public ConcurrentHashMap<String, Boolean> voteResult;
+
+    public ConcurrentHashMap<String, Boolean> ackMap;
+
     boolean succeeded = false;
 
     public CommitProcess(String collageName, byte[] collageContent, String[] sources) {
+
         this.collageName = collageName;
         this.collageContent = collageContent;
         this.sources = sources;
-        userMap = new HashMap<String, ArrayList<String>>();
+        userMap = new ConcurrentHashMap<String, ArrayList<String>>();
+        voteResult = new ConcurrentHashMap<String, Boolean>();
+        ackMap = new ConcurrentHashMap<String, Boolean>();
+
         for (String tmp: sources) {
             String userID = tmp.split(":")[0];
             String filename = tmp.split(":")[1];
@@ -25,13 +36,12 @@ public class CommitProcess {
                 ArrayList<String> tmpArray = new ArrayList<String>();
                 tmpArray.add(filename);
                 userMap.put(userID, tmpArray);
-                voteResult.put(userID, false);
+                ackMap.put(userID, false);
             }
         }
     }
 
-    public boolean checkSucceeded() {
-        assert(voteResult.size() == userMap.size());
+    public boolean checkVoteResult() {
         Set<String> clientSet = voteResult.keySet();
         for (String tmp: clientSet) {
             if (!voteResult.get(tmp)) {
@@ -39,5 +49,12 @@ public class CommitProcess {
             }
         }
         return true;
+    }
+
+    public boolean checkVoted() {
+        if (voteResult.size() == userMap.size()) {
+            return true;
+        }
+        return false;
     }
 }

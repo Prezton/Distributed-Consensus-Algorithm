@@ -1,17 +1,25 @@
 import java.io.*;
+import java.util.*;
 
 public class MyMessage implements Serializable {
+
     // TYPE Flag, 1 = Prepare, 2 = Vote, 3 = Decision, 4 = ACK
-    int type = 0;
-    String collageName;
-    byte[] collageContent;
-    String[] sources;
-    public MyMessage(int type, String collageName, byte[] collageContent, String[] souces) {
+    public int type = 0;
+    
+    public String collageName;
+    public byte[] collageContent;
+    public String[] sources;
+
+    // Used for voteResult or commitResult
+    public boolean boolResult;
+
+    public MyMessage(int type, String collageName, byte[] collageContent, String[] sources) {
         this.type = type;
         this.collageName = collageName;
         this.collageContent = collageContent;
         this.sources = sources;
     }
+
 
     public byte[] serialize() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -34,5 +42,5 @@ public class MyMessage implements Serializable {
         return result;
     }
 
-    
+
 }
