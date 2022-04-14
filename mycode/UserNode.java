@@ -24,16 +24,14 @@ public class UserNode {
 
     public static boolean lockFile(MyMessage myMessage) {
         for (String tmpString: myMessage.sources) {
-            String userName = tmpString.split(":")[0];
-            String fileName = tmpString.split(":")[1];
-            if (userName.equals(clientID)) {
+            String fileName = tmpString;
                 // File has already been locked, refuse this commit
-                if (lockedFile.containsKey(fileName) || !((new File(fileName)).exists())) {
-                    return false;
-                } else {
-                    lockedFile.put(fileName,true);
-                }
+            if (lockedFile.containsKey(fileName) || !((new File(fileName)).exists())) {
+                return false;
+            } else {
+                lockedFile.put(fileName,true);
             }
+            
         }
         return true;
     }
@@ -58,26 +56,23 @@ public class UserNode {
             // If decision is commit, delete local file
             String[] sources = myMessage.sources;
             for (String tmpString: sources) {
-                String userID = tmpString.split(":")[0];
-                String fileName = tmpString.split(":")[1];
-                if (userID.equals(clientID)) {
-                    File subFile = new File(fileName);
-                    subFile.delete();
-                }
+                String fileName = tmpString;
+                File subFile = new File(fileName);
+                System.out.println("DELETE: " + fileName);
+                subFile.delete();
+                
             }
         } else {
             // If decision is abort, unlock the files in invalid commit
             String[] sources = myMessage.sources;
             for (String tmpString: sources) {
-                String userID = tmpString.split(":")[0];
-                String fileName = tmpString.split(":")[1];
-                if (userID.equals(clientID)) {
-                    if (lockedFile.containsKey(fileName)) {
-                        // POTENTIAL PROBLEM HERE!!! MAY REMOVE FILE LOCKED BY OTHER COMMITS!!!
-                        // Could add a map to bind locked files with the corresponding commit!!!
-                        lockedFile.remove(fileName);
-                    }
+                String fileName = tmpString;
+                if (lockedFile.containsKey(fileName)) {
+                    // POTENTIAL PROBLEM HERE!!! MAY REMOVE FILE LOCKED BY OTHER COMMITS!!!
+                    // Could add a map to bind locked files with the corresponding commit!!!
+                    lockedFile.remove(fileName);
                 }
+                
             }
         }
         sendACK(myMessage);

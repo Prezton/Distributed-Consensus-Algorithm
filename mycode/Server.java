@@ -17,21 +17,24 @@ public class Server implements ProjectLib.CommitServing {
     private static ConcurrentHashMap<String, CommitProcess> processMap;
 
     public Server() {
+        processMap = new ConcurrentHashMap<String, CommitProcess>();
     }
 
 
     public void startCommit(String filename, byte[] img, String[] sources) {
-        CommitProcess currentProcess = new CommitProcess(filename, img, sources);
-        processMap.put(filename, currentProcess);
-        Thread twoPC = new Thread(new TwoPhaseCommit(filename));
-        twoPC.start();
+
+        new Thread(new TwoPhaseCommit(filename, img, sources)).start();
 
     }
 
     private static class TwoPhaseCommit implements Runnable {
-        String collageName;
-        public TwoPhaseCommit(String filename) {
+        private String collageName;
+        
+        public TwoPhaseCommit(String filename, byte[] img, String[] sources) {
             this.collageName = filename;
+            System.out.println("START COMMIT: " + filename);
+            CommitProcess currentProcess = new CommitProcess(filename, img, sources);
+            processMap.put(this.collageName, currentProcess);
         }
         public void run() {
             sendPrepare(collageName);
@@ -41,12 +44,24 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void sendPrepare(String collageName) {
         CommitProcess currentProcess = processMap.get(collageName);
-        Set<String> users = currentProcess.userMap.keySet();
+        ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
+        Set<String> users = userMap.keySet();
         for (String addr: users) {
-            MyMessage body = new MyMessage(1, currentProcess.collageName, currentProcess.collageContent, currentProcess.sources);
+            String[] sourStrings = convertToSources(userMap, addr);
+            MyMessage body = new MyMessage(1, currentProcess.collageName, currentProcess.collageContent, sourStrings);
             ProjectLib.Message prepareMsg = new ProjectLib.Message(addr, body.serialize());
             pl.sendMessage(prepareMsg);
         }
+    }
+
+    public static String[] convertToSources(ConcurrentHashMap<String, ArrayList<String>> userMap, String addr) {
+        ArrayList<String> tmpArr = userMap.get(addr);
+        int s = tmpArr.size();
+        String[] sourStrings = new String[tmpArr.size()];
+        for (int i = 0; i < s; i ++) {
+            sourStrings[i] = tmpArr.get(i);
+        }
+        return sourStrings;
     }
 
     private static class messageHandler implements Runnable {
@@ -70,6 +85,8 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void voteHandler(String srcAddr, MyMessage myMessage) {
         String collageName = myMessage.collageName;
+        System.out.println("voteHandler: " + collageName);
+
         if (processMap.containsKey(collageName)) {
             CommitProcess currentProcess = processMap.get(collageName);
             boolean voteResult = myMessage.boolResult;
@@ -90,19 +107,29 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void sendDecision(boolean decision, CommitProcess currentProcess) {
-        MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, currentProcess.sources);
+
         if (decision) {
-            // SEND COMMIT
-            commitMsg.boolResult = true;
+            // SAVE COLLAGE LOCALLY
             saveCollage(currentProcess.collageName, currentProcess.collageContent);
-        } else {
-            // SEND ABORT
-            commitMsg.boolResult = false;
         }
-        Set<String> destinations = currentProcess.userMap.keySet();
-        for (String destAddr: destinations) {
-            ProjectLib.Message messageToSend = new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg));
-            pl.sendMessage(messageToSend);
+
+        ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
+        Set<String> destinations = userMap.keySet();
+
+        if (decision) {
+            for (String destAddr: destinations) {
+                MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
+                commitMsg.boolResult = true;
+                ProjectLib.Message messageToSend = new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg));
+                pl.sendMessage(messageToSend);
+            }
+        } else {
+            for (String destAddr: destinations) {
+                MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
+                commitMsg.boolResult = false;
+                ProjectLib.Message messageToSend = new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg));
+                pl.sendMessage(messageToSend);
+            }
         }
     }
 
@@ -117,7 +144,13 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void ackHandler(String srcAddr, MyMessage myMessage) {
         String collageName = myMessage.collageName;
-        CommitProcess currentProcess = processMap.get(collageName);
+        System.out.println("ackHandler: " + collageName);
+        CommitProcess currentProcess = null;
+        if (processMap.containsKey(collageName)) {
+            currentProcess = processMap.get(collageName);
+        } else {
+            System.out.println("ackHandler() not in processMap: " + collageName);
+        }
         ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
         if (!ackMap.containsKey(srcAddr)) {
             System.err.println("CLIENT NOT IN ACK MAP, STH WRONG");
@@ -154,11 +187,9 @@ public class Server implements ProjectLib.CommitServing {
         int port =  Integer.parseInt(args[0]);
         Server server = new Server();
         pl = new ProjectLib(port, server);
-
         while (true) {
             ProjectLib.Message receivedMessage = pl.getMessage();
-            Thread handler = new Thread(new messageHandler(receivedMessage));
-            handler.start();
+            messageHandle(receivedMessage);
         }
         
 
