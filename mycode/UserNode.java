@@ -1,4 +1,6 @@
 import java.util.concurrent.*;
+import java.io.File;
+import java.io.FilenameFilter;
 import java.util.*;
 
 public class UserNode {
@@ -26,7 +28,7 @@ public class UserNode {
             String fileName = tmpString.split(":")[1];
             if (userName.equals(clientID)) {
                 // File has already been locked, refuse this commit
-                if (lockedFile.containsKey(fileName)) {
+                if (lockedFile.containsKey(fileName) || !((new File(fileName)).exists())) {
                     return false;
                 } else {
                     lockedFile.put(fileName,true);
@@ -51,7 +53,41 @@ public class UserNode {
     }
 
     public static void decisionHandler(String srcName, MyMessage myMessage) {
-        
+        boolean commitDecision = myMessage.boolResult;
+        if (commitDecision) {
+            // If decision is commit, delete local file
+            String[] sources = myMessage.sources;
+            for (String tmpString: sources) {
+                String userID = tmpString.split(":")[0];
+                String fileName = tmpString.split(":")[1];
+                if (userID.equals(clientID)) {
+                    File subFile = new File(fileName);
+                    subFile.delete();
+                }
+            }
+        } else {
+            // If decision is abort, unlock the files in invalid commit
+            String[] sources = myMessage.sources;
+            for (String tmpString: sources) {
+                String userID = tmpString.split(":")[0];
+                String fileName = tmpString.split(":")[1];
+                if (userID.equals(clientID)) {
+                    if (lockedFile.containsKey(fileName)) {
+                        // POTENTIAL PROBLEM HERE!!! MAY REMOVE FILE LOCKED BY OTHER COMMITS!!!
+                        // Could add a map to bind locked files with the corresponding commit!!!
+                        lockedFile.remove(fileName);
+                    }
+                }
+            }
+        }
+        sendACK(myMessage);
+    }
+
+    public static void sendACK(MyMessage receivedMessage) {
+        String collageName = receivedMessage.collageName;
+        MyMessage myMessage = new MyMessage(4, collageName, null, receivedMessage.sources);
+        ProjectLib.Message messageToSend = new ProjectLib.Message(serverAddr, serializeTool.serialize(myMessage));
+        pl.sendMessage(messageToSend);
     }
 
     public static void main(String[] args) {
