@@ -91,24 +91,28 @@ public class Server implements ProjectLib.CommitServing {
             CommitProcess currentProcess = processMap.get(collageName);
             boolean voteResult = myMessage.boolResult;
             if (voteResult == false) {
+                // Abort
                 boolean decision = false;
                 sendDecision(decision, currentProcess);
                 // SHOULD NOT REMOVE NOW, NOT DONE YET!!!
-                // processMap.remove(collageName);
+                processMap.remove(collageName);
                 return;
             }
             currentProcess.voteResult.put(srcAddr, voteResult);
             if (currentProcess.checkVoted()) {
+                // Basically, a Commit decision
                 boolean decision = currentProcess.checkVoteResult();
                 sendDecision(decision, currentProcess);
             }
         } else {
-            System.err.println("handleVote(): NON-EXISTED COMMIT RECORD, STH WRONG");
+            System.err.println("handleVote(): already removed collage " + collageName + "'s commit");
         }
     }
 
     public static void sendDecision(boolean decision, CommitProcess currentProcess) {
         System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName);
+
+        currentProcess.succeeded = decision;
 
         if (decision) {
             // SAVE COLLAGE LOCALLY
@@ -119,6 +123,7 @@ public class Server implements ProjectLib.CommitServing {
         Set<String> destinations = userMap.keySet();
 
         if (decision) {
+            // Succeeded
             for (String destAddr: destinations) {
                 MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
                 commitMsg.boolResult = true;
@@ -151,19 +156,24 @@ public class Server implements ProjectLib.CommitServing {
         if (processMap.containsKey(collageName)) {
             currentProcess = processMap.get(collageName);
         } else {
-            System.out.println("ackHandler() not in processMap: " + collageName);
+            System.out.println("ackHandler() not in processMap: " + collageName + "STH WRONG OR ABORTED ALREADY");
         }
-        ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
-        if (!ackMap.containsKey(srcAddr)) {
-            System.err.println("CLIENT NOT IN ACK MAP, STH WRONG");
+        if (currentProcess != null) {
+            ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
+            if (!ackMap.containsKey(srcAddr)) {
+                System.err.println("CLIENT NOT IN ACK MAP, STH WRONG");
+            } else {
+                ackMap.put(srcAddr, true);
+            }
+            if (checkACK(ackMap)) {
+                // COMMIT FINISHED
+                System.out.println("commit about " + collageName + " result is: "+ currentProcess.succeeded);
+                processMap.remove(collageName);
+            }
         } else {
-            ackMap.put(srcAddr, true);
+            System.err.println("ackHandler(): null currentProcess about collage " + collageName);
         }
-        if (checkACK(ackMap)) {
-            // COMMIT FINISHED
-            System.out.println("COMMIT DONE: " + collageName);
-            processMap.remove(collageName);
-        }
+
     }
 
     private static boolean checkACK(ConcurrentHashMap<String, Boolean> ackMap) {
