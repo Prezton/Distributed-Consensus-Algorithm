@@ -93,16 +93,22 @@ public class Server implements ProjectLib.CommitServing {
             if (voteResult == false) {
                 // Abort
                 boolean decision = false;
-                sendDecision(decision, currentProcess);
+                if (!currentProcess.aborted) {
+                    sendDecision(decision, currentProcess);
+                }
+                currentProcess.aborted = true;
                 // SHOULD NOT REMOVE NOW, NOT DONE YET!!!
-                processMap.remove(collageName);
-                return;
+                // processMap.remove(collageName);
             }
             currentProcess.voteResult.put(srcAddr, voteResult);
             if (currentProcess.checkVoted()) {
                 // Basically, a Commit decision
                 boolean decision = currentProcess.checkVoteResult();
-                sendDecision(decision, currentProcess);
+                if (decision) {
+                    sendDecision(decision, currentProcess);
+                } else {
+                    System.out.println("ABORTED ALREADY");
+                }
             }
         } else {
             System.err.println("handleVote(): already removed collage " + collageName + "'s commit");
