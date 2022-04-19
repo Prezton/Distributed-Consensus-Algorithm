@@ -41,6 +41,13 @@ public class CommitProcess {
         }
     }
 
+    public CommitProcess(MyMessage myMessage) {
+        this.collageName = myMessage.collageName;
+        this.collageContent = myMessage.collageContent;
+        this.sources = myMessage.sources;
+        this.userMap = new ConcurrentHashMap<String, ArrayList<String>>();
+    }
+
     public boolean checkVoteResult() {
         Set<String> clientSet = voteResult.keySet();
         for (String tmp: clientSet) {

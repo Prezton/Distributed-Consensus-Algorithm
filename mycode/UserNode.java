@@ -9,6 +9,7 @@ public class UserNode {
     private static final String serverAddr = "Server";
     private static ConcurrentHashMap<String, Boolean> lockedFile = new ConcurrentHashMap<String, Boolean>();
     private static String clientID;
+    private static ConcurrentHashMap<String, CommitProcess> processMap = new ConcurrentHashMap<String, CommitProcess>();
 
     public static void messageHandler(ProjectLib.Message receivedMessage) {
         String srcName = receivedMessage.addr;
@@ -37,13 +38,15 @@ public class UserNode {
     }
 
     public static void prepareHandler(String srcName, MyMessage myMessage) {
-        boolean voteResult = pl.askUser(myMessage.collageContent, myMessage.sources);
+        boolean voteResult;
+        if (!lockFile(myMessage)) {
+            // Locked already or does not exist
+            voteResult = false;
+        } else {
+            voteResult = pl.askUser(myMessage.collageContent, myMessage.sources);
+        }
         MyMessage voteMessage = new MyMessage(2, myMessage.collageName, null, myMessage.sources);
         assert (srcName == "Server");
-        
-        if (!lockFile(myMessage)) {
-            voteResult = false;
-        }
 
         voteMessage.boolResult = voteResult;
         ProjectLib.Message messageToSend = new ProjectLib.Message(serverAddr, serializeTool.serialize(voteMessage));
@@ -51,7 +54,7 @@ public class UserNode {
     }
 
     public static void decisionHandler(String srcName, MyMessage myMessage) {
-        System.out.println("decisionHandler: decision about " + srcName + " is " + myMessage.boolResult);
+        System.out.println(clientID + "'s decisionHandler: decision from " + srcName + " about " + myMessage.collageName + " is " + myMessage.boolResult);
         boolean commitDecision = myMessage.boolResult;
         if (commitDecision) {
             // If decision is commit, delete local file
@@ -59,7 +62,7 @@ public class UserNode {
             for (String tmpString: sources) {
                 String fileName = tmpString;
                 File subFile = new File(fileName);
-                System.out.println("DELETE: " + fileName);
+                System.out.println(clientID + "'s DELETE: " + fileName);
                 subFile.delete();
                 
             }
@@ -80,6 +83,7 @@ public class UserNode {
     }
 
     public static void sendACK(MyMessage receivedMessage) {
+        System.out.println(clientID + "'s sendACK()");
         String collageName = receivedMessage.collageName;
         MyMessage myMessage = new MyMessage(4, collageName, null, receivedMessage.sources);
         ProjectLib.Message messageToSend = new ProjectLib.Message(serverAddr, serializeTool.serialize(myMessage));
