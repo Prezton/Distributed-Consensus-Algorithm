@@ -52,6 +52,8 @@ public class Server implements ProjectLib.CommitServing {
             ProjectLib.Message prepareMsg = new ProjectLib.Message(addr, body.serialize());
             pl.sendMessage(prepareMsg);
         }
+        currentProcess.timeStamp = System.currentTimeMillis();
+        checkVoteTimeOut(collageName);
     }
 
     public static String[] convertToSources(ConcurrentHashMap<String, ArrayList<String>> userMap, String addr) {
@@ -100,10 +102,14 @@ public class Server implements ProjectLib.CommitServing {
                 // SHOULD NOT REMOVE NOW, NOT DONE YET!!!
                 // processMap.remove(collageName);
             }
+            if (currentProcess.voteResult.containsKey(srcAddr)) {
+                System.out.println("voteHandler(): " + srcAddr + " already voted, sth wrong!");
+                assert(voteResult == currentProcess.voteResult.get(srcAddr));
+            }
             currentProcess.voteResult.put(srcAddr, voteResult);
-            if (currentProcess.checkVoted()) {
+            if (checkVoted(currentProcess)) {
                 // Basically, a Commit decision
-                boolean decision = currentProcess.checkVoteResult();
+                boolean decision = checkVoteResult(currentProcess);
                 if (decision) {
                     sendDecision(decision, currentProcess);
                 } else {
@@ -112,6 +118,54 @@ public class Server implements ProjectLib.CommitServing {
             }
         } else {
             System.err.println("handleVote(): already removed collage " + collageName + "'s commit");
+        }
+    }
+
+    private static boolean checkVoteResult(CommitProcess currentProcess) {
+        ConcurrentHashMap<String, Boolean> voteResult = currentProcess.voteResult;
+        Set<String> clientSet = voteResult.keySet();
+        for (String tmp: clientSet) {
+            if (!voteResult.get(tmp)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean checkVoted(CommitProcess currentProcess) {
+        ConcurrentHashMap<String, Boolean> voteResult = currentProcess.voteResult;
+        ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
+        if (voteResult.size() == userMap.size()) {
+            return true;
+        }
+        return false;
+    }
+
+    public static void checkVoteTimeOut(String collageName) {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        voteTimeOutAbort(collageName);
+    }
+
+    public static void voteTimeOutAbort(String collageName) {
+        System.out.println("voteTimeOutAbort(): " + collageName);
+        CommitProcess currentProcess = null;
+        if (processMap.containsKey(collageName)) {
+            currentProcess = processMap.get(collageName);
+        } else {
+            System.out.println("voteAbort(): " + collageName + " not in processMap, could have committed or aborted");
+        }
+        if (currentProcess != null) {
+            ConcurrentHashMap<String, Boolean> voteMap = currentProcess.voteResult;
+            ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap; 
+            if (voteMap.size() != userMap.size()) {
+                currentProcess.aborted = true;
+                System.out.println("voteTimeOutAbort(): aborted " + collageName);
+                sendDecision(false, currentProcess);
+            }
         }
     }
 
@@ -144,6 +198,50 @@ public class Server implements ProjectLib.CommitServing {
                 pl.sendMessage(messageToSend);
             }
         }
+        currentProcess.timeStamp = System.currentTimeMillis();
+        checkAckTimeOut(decision, currentProcess);
+    }
+
+    public static void resendDecision(boolean decision, CommitProcess currentProcess) {
+        ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
+        Set<String> destinations = userMap.keySet();
+        ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
+        boolean sent = false;
+        for (String destAddr: destinations) {
+            if (!ackMap.get(destAddr)) {
+                if (currentProcess.timeStamp > 0 && System.currentTimeMillis() - currentProcess.timeStamp >= 3000) {
+                    System.out.println("resendDecision() about: " + currentProcess.collageName);
+                    MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
+                    if (decision) {
+                        commitMsg.boolResult = true;
+                    } else {
+                        commitMsg.boolResult = false;
+                    }
+                    pl.sendMessage(new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg)));
+                    sent = true;
+                }
+            }
+        }
+        if (sent) {
+            currentProcess.timeStamp = System.currentTimeMillis();
+        }
+    }
+
+    private static class CheckAckTimeOut extends TimerTask {
+        boolean decision;
+        CommitProcess currentProcess;
+        public CheckAckTimeOut(boolean decision, CommitProcess currentProcess) {
+            this.decision = decision;
+            this.currentProcess = currentProcess;
+        }
+        public void run() {
+            resendDecision(decision, currentProcess);
+        }
+    }
+
+    public static void checkAckTimeOut(boolean decision, CommitProcess currentProcess) {
+        Timer ackChecker = new Timer();
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 0L, 3000L);
     }
 
     public static void saveCollage(String collageName, byte[] collageContent) {
