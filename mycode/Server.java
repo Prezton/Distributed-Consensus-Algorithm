@@ -107,7 +107,7 @@ public class Server implements ProjectLib.CommitServing {
                 assert(voteResult == currentProcess.voteResult.get(srcAddr));
             }
             currentProcess.voteResult.put(srcAddr, voteResult);
-            if (checkVoted(currentProcess)) {
+            if (checkVoteNum(currentProcess)) {
                 // Basically, a Commit decision
                 boolean decision = checkVoteResult(currentProcess);
                 if (decision) {
@@ -132,7 +132,7 @@ public class Server implements ProjectLib.CommitServing {
         return true;
     }
 
-    private static boolean checkVoted(CommitProcess currentProcess) {
+    private static boolean checkVoteNum(CommitProcess currentProcess) {
         ConcurrentHashMap<String, Boolean> voteResult = currentProcess.voteResult;
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
         if (voteResult.size() == userMap.size()) {
@@ -151,19 +151,18 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void voteTimeOutAbort(String collageName) {
-        System.out.println("voteTimeOutAbort(): " + collageName);
         CommitProcess currentProcess = null;
         if (processMap.containsKey(collageName)) {
             currentProcess = processMap.get(collageName);
         } else {
-            System.out.println("voteAbort(): " + collageName + " not in processMap, could have committed or aborted");
+            System.out.println("voteTimeOutAbort(): " + collageName + " not in processMap, could have committed or aborted");
         }
         if (currentProcess != null) {
             ConcurrentHashMap<String, Boolean> voteMap = currentProcess.voteResult;
             ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap; 
             if (voteMap.size() != userMap.size()) {
                 currentProcess.aborted = true;
-                System.out.println("voteTimeOutAbort(): aborted " + collageName);
+                System.out.println("voteTimeOutAbort(): aborted! " + collageName);
                 sendDecision(false, currentProcess);
             }
         }
@@ -198,8 +197,10 @@ public class Server implements ProjectLib.CommitServing {
                 pl.sendMessage(messageToSend);
             }
         }
+
         currentProcess.timeStamp = System.currentTimeMillis();
-        checkAckTimeOut(decision, currentProcess);
+        Timer ackChecker = new Timer();
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3100L, 3100L);
     }
 
     public static void resendDecision(boolean decision, CommitProcess currentProcess) {
@@ -211,7 +212,7 @@ public class Server implements ProjectLib.CommitServing {
         for (String destAddr: destinations) {
             if (!ackMap.get(destAddr)) {
                 // if (currentProcess.timeStamp > 0 && System.currentTimeMillis() - currentProcess.timeStamp >= 3000) {
-                    System.out.println("resendDecision() about: " + currentProcess.collageName);
+                    System.out.println("resendDecision() about: " + currentProcess.collageName + " to " + destAddr);
                     MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
                     if (decision) {
                         commitMsg.boolResult = true;
@@ -245,11 +246,6 @@ public class Server implements ProjectLib.CommitServing {
         }
     }
 
-    public static void checkAckTimeOut(boolean decision, CommitProcess currentProcess) {
-        Timer ackChecker = new Timer();
-        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3000L, 3000L);
-    }
-
     public static void saveCollage(String collageName, byte[] collageContent) {
         try {
             FileOutputStream fos = new FileOutputStream(collageName);
@@ -275,9 +271,9 @@ public class Server implements ProjectLib.CommitServing {
             } else {
                 ackMap.put(srcAddr, true);
             }
-            if (checkACK(ackMap)) {
+            if (checkAckNum(ackMap)) {
                 // COMMIT FINISHED
-                System.out.println("commit about " + collageName + " result is: "+ currentProcess.succeeded);
+                System.out.println("commit about " + collageName + " finished!, result is: "+ currentProcess.succeeded);
                 processMap.remove(collageName);
             }
         } else {
@@ -286,7 +282,7 @@ public class Server implements ProjectLib.CommitServing {
 
     }
 
-    private static boolean checkACK(ConcurrentHashMap<String, Boolean> ackMap) {
+    private static boolean checkAckNum(ConcurrentHashMap<String, Boolean> ackMap) {
         Set<String> tmpSet = ackMap.keySet();
         for (String tmpString: tmpSet) {
             if (!ackMap.get(tmpString)) {
