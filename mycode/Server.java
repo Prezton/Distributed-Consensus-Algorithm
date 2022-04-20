@@ -207,9 +207,10 @@ public class Server implements ProjectLib.CommitServing {
         Set<String> destinations = userMap.keySet();
         ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
         boolean sent = false;
+        boolean notAllReceived = false;
         for (String destAddr: destinations) {
             if (!ackMap.get(destAddr)) {
-                if (currentProcess.timeStamp > 0 && System.currentTimeMillis() - currentProcess.timeStamp >= 3000) {
+                // if (currentProcess.timeStamp > 0 && System.currentTimeMillis() - currentProcess.timeStamp >= 3000) {
                     System.out.println("resendDecision() about: " + currentProcess.collageName);
                     MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
                     if (decision) {
@@ -219,11 +220,16 @@ public class Server implements ProjectLib.CommitServing {
                     }
                     pl.sendMessage(new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg)));
                     sent = true;
-                }
+                    notAllReceived = true;
+                // }
             }
         }
         if (sent) {
             currentProcess.timeStamp = System.currentTimeMillis();
+        }
+        if (!notAllReceived) {
+            System.out.println("resendDecision(): ALL ACK RECEIVED! " + currentProcess.collageName);
+            // Q: how to stop resend after all acks are received?
         }
     }
 
@@ -241,7 +247,7 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void checkAckTimeOut(boolean decision, CommitProcess currentProcess) {
         Timer ackChecker = new Timer();
-        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 0L, 3000L);
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3000L, 3000L);
     }
 
     public static void saveCollage(String collageName, byte[] collageContent) {
@@ -265,7 +271,7 @@ public class Server implements ProjectLib.CommitServing {
         if (currentProcess != null) {
             ConcurrentHashMap<String, Boolean> ackMap = currentProcess.ackMap;
             if (!ackMap.containsKey(srcAddr)) {
-                System.err.println("CLIENT NOT IN ACK MAP, STH WRONG");
+                System.out.println("CLIENT NOT IN ACK MAP, STH WRONG! " + srcAddr + " " + currentProcess.collageName);
             } else {
                 ackMap.put(srcAddr, true);
             }
