@@ -5,6 +5,7 @@ public class CommitProcess {
     public String collageName;
     public byte[] collageContent;
     public String[] sources;
+    public long timeStamp;
 
     // {user id: filenames} map which composes the collage candidate
     public ConcurrentHashMap<String, ArrayList<String>> userMap;
@@ -14,7 +15,8 @@ public class CommitProcess {
 
     public ConcurrentHashMap<String, Boolean> ackMap;
 
-    boolean succeeded = false;
+    public boolean succeeded = false;
+    public boolean aborted = false;
 
     public CommitProcess(String collageName, byte[] collageContent, String[] sources) {
 
@@ -48,20 +50,4 @@ public class CommitProcess {
         this.userMap = new ConcurrentHashMap<String, ArrayList<String>>();
     }
 
-    public boolean checkVoteResult() {
-        Set<String> clientSet = voteResult.keySet();
-        for (String tmp: clientSet) {
-            if (!voteResult.get(tmp)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public boolean checkVoted() {
-        if (voteResult.size() == userMap.size()) {
-            return true;
-        }
-        return false;
-    }
 }

@@ -1,0 +1,73 @@
+peizhaol@linux-17:~/private/15640/project4/15440-p4/test$ java Project4 18640 scripts/3-dropped-message.txt 
+Starting Project4
+START COMMIT: 1.jpg
+START COMMIT: 2.jpg
+voteHandler: vote from d about 2.jpg is true
+voteHandler: vote from c about 2.jpg is true
+SEND DECISION ABOUT: 2.jpg
+voteHandler: vote from b about 1.jpg is true
+d's decisionHandler: decision from Server about 2.jpg is true
+c's decisionHandler: decision from Server about 2.jpg is true
+c's DELETE: 5.jpg
+d's DELETE: 7.jpg
+d's DELETE: carnegie.jpg
+c's sendACK()
+d's sendACK()
+ackHandler: ack about 2.jpg from c
+ackHandler: ack about 2.jpg from d
+commit about 2.jpg result is: true
+voteTimeOutAbort()
+voteAbort(): 2.jpg not in processMap
+voteTimeOutAbort()
+voteTimeOutAbort(): aborted 1.jpg
+SEND DECISION ABOUT: 1.jpg
+a's decisionHandler: decision from Server about 1.jpg is false
+a's sendACK()
+b's decisionHandler: decision from Server about 1.jpg is false
+b's sendACK()
+ackHandler: ack about 1.jpg from b
+resendDecision() about: 1.jpg
+a's decisionHandler: decision from Server about 1.jpg is false
+a's sendACK()
+Ended Project4
+peizhaol@linux-17:~/private/15640/project4/15440-p4/test$ 
+
+
+
+
+
+
+
+peizhaol@linux-17:~/private/15640/project4/15440-p4/test$ java Project4 18640 scripts/3-dropped-message.txt 
+Starting Project4
+START COMMIT: 1.jpg
+START COMMIT: 2.jpg
+voteHandler: vote from b about 1.jpg is true
+voteHandler: vote from c about 2.jpg is true
+voteHandler: vote from d about 2.jpg is true
+SEND DECISION ABOUT: 2.jpg
+c's decisionHandler: decision from Server about 2.jpg is true
+c's DELETE: 5.jpg
+c's sendACK()
+d's decisionHandler: decision from Server about 2.jpg is true
+d's DELETE: 7.jpg
+d's DELETE: carnegie.jpg
+d's sendACK()
+ackHandler: ack about 2.jpg from c
+ackHandler: ack about 2.jpg from d
+commit about 2.jpg result is: true
+voteTimeOutAbort()
+voteTimeOutAbort(): aborted 1.jpg
+SEND DECISION ABOUT: 1.jpg
+voteTimeOutAbort()
+voteAbort(): 2.jpg not in processMap
+b's decisionHandler: decision from Server about 1.jpg is false
+b's sendACK()
+a's decisionHandler: decision from Server about 1.jpg is false
+a's sendACK()
+ackHandler: ack about 1.jpg from b
+resendDecision() about: 1.jpg
+a's decisionHandler: decision from Server about 1.jpg is false
+a's sendACK()
+Ended Project4
+peizhaol@linux-17:~/private/15640/project4/15440-p4/test$ 
