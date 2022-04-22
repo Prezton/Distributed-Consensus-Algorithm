@@ -43,6 +43,7 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void sendPrepare(String collageName) {
+        System.out.println("sendPrepare(): " + collageName);
         CommitProcess currentProcess = processMap.get(collageName);
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
         Set<String> users = userMap.keySet();
