@@ -1,5 +1,7 @@
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.util.Set;
 import java.util.*;
@@ -15,6 +17,7 @@ public class Server implements ProjectLib.CommitServing {
 
     private static ProjectLib pl;
     private static ConcurrentHashMap<String, CommitProcess> processMap;
+    private static LogOperations serverLog;
 
     public Server() {
         processMap = new ConcurrentHashMap<String, CommitProcess>();
@@ -31,10 +34,11 @@ public class Server implements ProjectLib.CommitServing {
         private String collageName;
         
         public TwoPhaseCommit(String filename, byte[] img, String[] sources) {
+            CommitProcess currentProcess = new CommitProcess(filename, img, sources);
             this.collageName = filename;
             System.out.println("START COMMIT: " + filename);
-            CommitProcess currentProcess = new CommitProcess(filename, img, sources);
             processMap.put(this.collageName, currentProcess);
+            
         }
         public void run() {
             sendPrepare(collageName);
@@ -42,7 +46,19 @@ public class Server implements ProjectLib.CommitServing {
         }
     }
 
+    // Prepare log contents in string for prepare stage
+    private static void writePrepareLog(String filename, CommitProcess currentProcess) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("PREPARE").append(",").append(filename);
+        // sb.append(filename).append(",");
+        serverLog.writeLogs(0, sb.toString());
+        serverLog.writeObjToLog(0, currentProcess.sources);
+        System.out.println("write prepare log: " + filename);
+    }
+
     public static void sendPrepare(String collageName) {
+        writePrepareLog(collageName, processMap.get(collageName));
+
         System.out.println("sendPrepare(): " + collageName);
         CommitProcess currentProcess = processMap.get(collageName);
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
@@ -170,7 +186,8 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void sendDecision(boolean decision, CommitProcess currentProcess) {
-        System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName);
+        writeDecisionLog(decision, currentProcess);
+        System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName + " is " + decision);
 
         currentProcess.succeeded = decision;
 
@@ -202,6 +219,23 @@ public class Server implements ProjectLib.CommitServing {
         currentProcess.timeStamp = System.currentTimeMillis();
         Timer ackChecker = new Timer();
         ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3100L, 3100L);
+    }
+
+    private static void writeDecisionLog(boolean decision, CommitProcess currentProcess) {
+        StringBuilder sb = new StringBuilder();
+        int decisionInt;
+        if (decision) {
+            decisionInt = 1;
+        } else {
+            decisionInt = 0;
+        }
+        String collageName = currentProcess.collageName;
+        sb.append("DECISION").append(",").append(collageName).append(",").append(decisionInt);
+        serverLog.writeLogs(0, sb.toString());
+        currentProcess.succeeded = decision;
+        serverLog.writeObjToLog(0, currentProcess);
+        System.out.println("WRITE DECISION LOG: " + decision);
+
     }
 
     public static void resendDecision(boolean decision, CommitProcess currentProcess) {
@@ -275,12 +309,59 @@ public class Server implements ProjectLib.CommitServing {
             if (checkAckNum(ackMap)) {
                 // COMMIT FINISHED
                 System.out.println("commit about " + collageName + " finished!, result is: "+ currentProcess.succeeded);
+                writeFinLog(collageName);
                 processMap.remove(collageName);
             }
         } else {
             System.err.println("ackHandler(): null currentProcess about collage " + collageName);
         }
 
+    }
+
+    public static void writeFinLog(String collageName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("FIN").append(",").append(collageName);
+        serverLog.writeLogs(0, sb.toString());
+        serverLog.writeObjToLog(0, null);
+    }
+
+    public static boolean reboot() {
+        String rebootType = null;
+        if ((new File("serverLog")).exists()) {
+            String[] rebootStrArr = (serverLog.readLogs(0)).split(",");
+            rebootType = rebootStrArr[0];
+            if (rebootType.equals("PREPARE")) {
+                System.out.println("server reboot(): PREPARE");
+                String collageName = rebootStrArr[1];
+                String[] sources = (String[]) serverLog.readObjFromLog(0);
+                CommitProcess rebootProcess = new CommitProcess(collageName, null, sources);
+                processMap.put(collageName, rebootProcess);
+                rebootProcess.succeeded = false;
+                rebootProcess.aborted = true;
+                sendDecision(false, rebootProcess);
+                return true;
+            } else if (rebootType.equals("DECISION")) {
+
+                String collageName = rebootStrArr[1];
+                CommitProcess rebootProcess = (CommitProcess) serverLog.readObjFromLog(0);
+                boolean decision;
+                decision = rebootProcess.succeeded;
+                processMap.put(collageName, rebootProcess);
+                rebootProcess.succeeded = decision;
+                rebootProcess.aborted = !(decision);
+                System.out.println("server reboot(): DECISION " + decision);
+
+                sendDecision(decision, rebootProcess);
+                return true;
+            } else if (rebootType.equals("FIN")) {
+                System.out.println("server reboot(): FIN");
+
+                return true;
+            }
+            System.out.println("log exists but not fit");
+            return false;
+        }
+        return true;
     }
 
     private static boolean checkAckNum(ConcurrentHashMap<String, Boolean> ackMap) {
@@ -307,6 +388,8 @@ public class Server implements ProjectLib.CommitServing {
         int port =  Integer.parseInt(args[0]);
         Server server = new Server();
         pl = new ProjectLib(port, server);
+        serverLog = new LogOperations(pl);
+        boolean rebootResult = reboot();
         while (true) {
             ProjectLib.Message receivedMessage = pl.getMessage();
             messageHandle(receivedMessage);
