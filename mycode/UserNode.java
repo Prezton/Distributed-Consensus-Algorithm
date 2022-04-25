@@ -26,6 +26,9 @@ public class UserNode {
     }
 
     public static boolean lockFile(MyMessage myMessage) {
+        if (myMessage.sources == null) {
+            return false;
+        }
         for (String tmpString: myMessage.sources) {
             String fileName = tmpString;
                 // File has already been locked, refuse this commit
@@ -180,6 +183,7 @@ public class UserNode {
                         }
                         
                     }
+                    sendACK(myMessage);
                 }
             }
         }
