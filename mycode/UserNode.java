@@ -26,9 +26,6 @@ public class UserNode {
     }
 
     public static boolean lockFile(MyMessage myMessage) {
-        if (myMessage.sources == null) {
-            return false;
-        }
         for (String tmpString: myMessage.sources) {
             String fileName = tmpString;
                 // File has already been locked, refuse this commit
@@ -72,7 +69,7 @@ public class UserNode {
         sb.append("VOTE").append(",").append(myMessage.collageName).append(",").append(intResult);
         userLog.writeLogs(1, sb.toString());
         userLog.writeObjToLog(1, files);
-        System.err.println("write User vote log");
+        System.err.println(clientID + " write User vote log");
     }
 
     public static void decisionHandler(String srcName, MyMessage myMessage) {
@@ -115,9 +112,9 @@ public class UserNode {
         String collageName = myMessage.collageName;
         String[] files = myMessage.sources;
         sb.append("DECISION").append(",").append(collageName).append(",").append(decisionInt);
-        userLog.writeLogs(0, sb.toString());
-        userLog.writeObjToLog(0, files);
-        System.err.println("WRITE USER DECISION LOG: " + myMessage.boolResult);
+        userLog.writeLogs(1, sb.toString());
+        userLog.writeObjToLog(1, files);
+        System.err.println(clientID + " WRITE USER DECISION LOG: " + myMessage.boolResult);
     }
 
     public static void sendACK(MyMessage receivedMessage) {
@@ -134,7 +131,7 @@ public class UserNode {
             String[] rebootStrArr = (userLog.readLogs(1)).split(",");
             rebootType = rebootStrArr[0];
             if (rebootType.equals("VOTE")) {
-                System.err.println("USER NODE REBOOT(): VOTE");
+                System.err.println(clientID + " USER NODE REBOOT(): VOTE");
                 String collageName = rebootStrArr[1];
                 boolean voteResult;   
                 String[] sources = (String[]) userLog.readObjFromLog(1);
@@ -148,15 +145,14 @@ public class UserNode {
                 MyMessage myMessage = new MyMessage(1, collageName, null, sources);
                 if (voteResult) {
                     lockFile(myMessage);
-                    writeVoteLog(voteResult, myMessage);
                 }
             } else if (rebootType.equals("DECISION")) {
-                System.err.println("USER NODE REBOOT(): DECISION");
+                System.err.println(clientID + " USER NODE REBOOT(): DECISION");
 
                 String collageName = rebootStrArr[1];
                 boolean commitDecision;
                 String[] sources = (String[]) userLog.readObjFromLog(1);
-                if (Integer.parseInt(rebootStrArr[2]) == 1) {
+                if (Integer.parseInt(rebootStrArr[2].strip()) == 1) {
                     commitDecision = true;
                 } else {
                     commitDecision = false;
@@ -183,7 +179,6 @@ public class UserNode {
                         }
                         
                     }
-                    sendACK(myMessage);
                 }
             }
         }

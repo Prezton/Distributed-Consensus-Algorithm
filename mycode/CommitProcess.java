@@ -1,7 +1,8 @@
+import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class CommitProcess {
+public class CommitProcess implements Serializable {
     public String collageName;
     public byte[] collageContent;
     public String[] sources;
@@ -17,6 +18,9 @@ public class CommitProcess {
 
     public boolean succeeded = false;
     public boolean aborted = false;
+
+    // 0: PREPARE, 1: DECISION, 2: FIN
+    public int stage = -1;
 
     public CommitProcess(String collageName, byte[] collageContent, String[] sources) {
 
@@ -48,6 +52,30 @@ public class CommitProcess {
         this.collageContent = myMessage.collageContent;
         this.sources = myMessage.sources;
         this.userMap = new ConcurrentHashMap<String, ArrayList<String>>();
+    }
+
+    public CommitProcess(CommitProcess currentProcess) {
+        this.collageName = currentProcess.collageName;
+        this.collageContent = null;
+        this.sources = currentProcess.sources;
+        userMap = new ConcurrentHashMap<String, ArrayList<String>>();
+        voteResult = new ConcurrentHashMap<String, Boolean>();
+        ackMap = new ConcurrentHashMap<String, Boolean>();
+
+        for (String tmp: sources) {
+            String userID = tmp.split(":")[0];
+            String filename = tmp.split(":")[1];
+            if (userMap.containsKey(userID)) {
+                ArrayList<String> tmpArray = userMap.get(userID);
+                tmpArray.add(filename);
+                userMap.put(userID, tmpArray);
+            } else {
+                ArrayList<String> tmpArray = new ArrayList<String>();
+                tmpArray.add(filename);
+                userMap.put(userID, tmpArray);
+                ackMap.put(userID, false);
+            }
+        }
     }
 
 }

@@ -46,18 +46,9 @@ public class Server implements ProjectLib.CommitServing {
         }
     }
 
-    // Prepare log contents in string for prepare stage
-    private static void writePrepareLog(String filename, CommitProcess currentProcess) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("PREPARE").append(",").append(filename);
-        // sb.append(filename).append(",");
-        serverLog.writeLogs(0, sb.toString());
-        serverLog.writeObjToLog(0, currentProcess.sources);
-        System.out.println("write prepare log: " + filename);
-    }
+
 
     public static void sendPrepare(String collageName) {
-        writePrepareLog(collageName, processMap.get(collageName));
 
         System.out.println("sendPrepare(): " + collageName);
         CommitProcess currentProcess = processMap.get(collageName);
@@ -134,7 +125,7 @@ public class Server implements ProjectLib.CommitServing {
                 }
             }
         } else {
-            System.err.println("handleVote(): already removed collage " + collageName + "'s commit");
+            System.out.println("handleVote(): already removed collage " + collageName + "'s commit");
         }
     }
 
@@ -223,6 +214,7 @@ public class Server implements ProjectLib.CommitServing {
 
     private static void writeDecisionLog(boolean decision, CommitProcess currentProcess) {
         StringBuilder sb = new StringBuilder();
+        currentProcess.succeeded = decision;
         int decisionInt;
         if (decision) {
             decisionInt = 1;
@@ -231,10 +223,9 @@ public class Server implements ProjectLib.CommitServing {
         }
         String collageName = currentProcess.collageName;
         sb.append("DECISION").append(",").append(collageName).append(",").append(decisionInt);
-        serverLog.writeLogs(0, sb.toString());
-        currentProcess.succeeded = decision;
         serverLog.writeObjToLog(0, currentProcess);
-        System.out.println("WRITE DECISION LOG: " + decision);
+        serverLog.writeLogs(0, sb.toString());
+        System.out.println("WRITE DECISION LOG ABOUT: " + collageName + " is " + decision);
 
     }
 
@@ -282,6 +273,7 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void saveCollage(String collageName, byte[] collageContent) {
+        System.out.println("SAVE COLLAGE " + collageName);
         try {
             FileOutputStream fos = new FileOutputStream(collageName);
             fos.write(collageContent);
@@ -313,7 +305,7 @@ public class Server implements ProjectLib.CommitServing {
                 processMap.remove(collageName);
             }
         } else {
-            System.err.println("ackHandler(): null currentProcess about collage " + collageName);
+            System.out.println("ackHandler(): null currentProcess about collage " + collageName);
         }
 
     }
@@ -321,8 +313,8 @@ public class Server implements ProjectLib.CommitServing {
     public static void writeFinLog(String collageName) {
         StringBuilder sb = new StringBuilder();
         sb.append("FIN").append(",").append(collageName);
-        serverLog.writeLogs(0, sb.toString());
         serverLog.writeObjToLog(0, null);
+        serverLog.writeLogs(0, sb.toString());
     }
 
     public static boolean reboot() {
@@ -352,10 +344,6 @@ public class Server implements ProjectLib.CommitServing {
                 System.out.println("server reboot(): DECISION " + decision);
 
                 sendDecision(decision, rebootProcess);
-                return true;
-            } else if (rebootType.equals("FIN")) {
-                System.out.println("server reboot(): FIN");
-
                 return true;
             }
             System.out.println("log exists but not fit");
