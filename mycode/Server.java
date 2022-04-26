@@ -61,7 +61,12 @@ public class Server implements ProjectLib.CommitServing {
             pl.sendMessage(prepareMsg);
         }
         currentProcess.timeStamp = System.currentTimeMillis();
-        checkVoteTimeOut(collageName);
+        try {
+            Thread.sleep(6000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        voteTimeOutAbort(collageName);
     }
 
     public static String[] convertToSources(ConcurrentHashMap<String, ArrayList<String>> userMap, String addr) {
@@ -149,14 +154,6 @@ public class Server implements ProjectLib.CommitServing {
         return false;
     }
 
-    public static void checkVoteTimeOut(String collageName) {
-        try {
-            Thread.sleep(3000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        voteTimeOutAbort(collageName);
-    }
 
     public static void voteTimeOutAbort(String collageName) {
         CommitProcess currentProcess = null;
@@ -209,7 +206,7 @@ public class Server implements ProjectLib.CommitServing {
 
         currentProcess.timeStamp = System.currentTimeMillis();
         Timer ackChecker = new Timer();
-        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3100L, 3100L);
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3000L, 6000L);
     }
 
     private static void writeDecisionLog(boolean decision, CommitProcess currentProcess) {
@@ -227,6 +224,41 @@ public class Server implements ProjectLib.CommitServing {
         serverLog.writeLogs(0, sb.toString());
         System.out.println("WRITE DECISION LOG ABOUT: " + collageName + " is " + decision);
 
+    }
+
+    public static void sendDecisionOnReboot(boolean decision, CommitProcess currentProcess) {
+        System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName + " is " + decision);
+
+        currentProcess.succeeded = decision;
+
+        if (decision) {
+            // SAVE COLLAGE LOCALLY
+            saveCollage(currentProcess.collageName, currentProcess.collageContent);
+        }
+
+        ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
+        Set<String> destinations = userMap.keySet();
+
+        if (decision) {
+            // Succeeded
+            for (String destAddr: destinations) {
+                MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
+                commitMsg.boolResult = true;
+                ProjectLib.Message messageToSend = new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg));
+                pl.sendMessage(messageToSend);
+            }
+        } else {
+            for (String destAddr: destinations) {
+                MyMessage commitMsg = new MyMessage(3, currentProcess.collageName, null, convertToSources(userMap, destAddr));
+                commitMsg.boolResult = false;
+                ProjectLib.Message messageToSend = new ProjectLib.Message(destAddr, serializeTool.serialize(commitMsg));
+                pl.sendMessage(messageToSend);
+            }
+        }
+
+        currentProcess.timeStamp = System.currentTimeMillis();
+        Timer ackChecker = new Timer();
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3000L, 6000L);
     }
 
     public static void resendDecision(boolean decision, CommitProcess currentProcess) {
@@ -323,15 +355,7 @@ public class Server implements ProjectLib.CommitServing {
             String[] rebootStrArr = (serverLog.readLogs(0)).split(",");
             rebootType = rebootStrArr[0];
             if (rebootType.equals("PREPARE")) {
-                System.out.println("server reboot(): PREPARE");
-                String collageName = rebootStrArr[1];
-                String[] sources = (String[]) serverLog.readObjFromLog(0);
-                CommitProcess rebootProcess = new CommitProcess(collageName, null, sources);
-                processMap.put(collageName, rebootProcess);
-                rebootProcess.succeeded = false;
-                rebootProcess.aborted = true;
-                sendDecision(false, rebootProcess);
-                return true;
+                return abortOnReboot(rebootStrArr);
             } else if (rebootType.equals("DECISION")) {
 
                 String collageName = rebootStrArr[1];
@@ -343,12 +367,24 @@ public class Server implements ProjectLib.CommitServing {
                 rebootProcess.aborted = !(decision);
                 System.out.println("server reboot(): DECISION " + decision);
 
-                sendDecision(decision, rebootProcess);
+                sendDecisionOnReboot(decision, rebootProcess);
                 return true;
             }
             System.out.println("log exists but not fit");
             return false;
         }
+        return true;
+    }
+
+    private static boolean abortOnReboot(String[] rebootStrArr) {
+        System.out.println("server reboot(): PREPARE");
+        String collageName = rebootStrArr[1];
+        String[] sources = (String[]) serverLog.readObjFromLog(0);
+        CommitProcess rebootProcess = new CommitProcess(collageName, null, sources);
+        processMap.put(collageName, rebootProcess);
+        rebootProcess.succeeded = false;
+        rebootProcess.aborted = true;
+        sendDecisionOnReboot(false, rebootProcess);
         return true;
     }
 
