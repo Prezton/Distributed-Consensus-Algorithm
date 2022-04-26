@@ -174,7 +174,6 @@ public class Server implements ProjectLib.CommitServing {
     }
 
     public static void sendDecision(boolean decision, CommitProcess currentProcess) {
-        writeDecisionLog(decision, currentProcess);
         System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName + " is " + decision);
 
         currentProcess.succeeded = decision;
@@ -183,7 +182,7 @@ public class Server implements ProjectLib.CommitServing {
             // SAVE COLLAGE LOCALLY
             saveCollage(currentProcess.collageName, currentProcess.collageContent);
         }
-
+        writeDecisionLog(decision, currentProcess);
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
         Set<String> destinations = userMap.keySet();
 
@@ -219,6 +218,7 @@ public class Server implements ProjectLib.CommitServing {
         }
         String collageName = currentProcess.collageName;
         String decisionToWrite = collageName + ":" + decisionInt;
+        currentProcess.collageContent = null;
         serverLog.writeObjToLog(0, currentProcess);
         serverLog.writeLogs(0, decisionToWrite);
         System.out.println("WRITE COMMIT LOG ABOUT: " + collageName + " is " + decision);
@@ -229,11 +229,6 @@ public class Server implements ProjectLib.CommitServing {
         System.out.println("SEND DECISION ABOUT: " + currentProcess.collageName + " is " + decision);
 
         currentProcess.succeeded = decision;
-
-        if (decision) {
-            // SAVE COLLAGE LOCALLY
-            saveCollage(currentProcess.collageName, currentProcess.collageContent);
-        }
 
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
         Set<String> destinations = userMap.keySet();
