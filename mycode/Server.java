@@ -52,6 +52,7 @@ public class Server implements ProjectLib.CommitServing {
 
         System.out.println("sendPrepare(): " + collageName);
         CommitProcess currentProcess = processMap.get(collageName);
+        writePrepareLog(collageName, currentProcess);
         ConcurrentHashMap<String, ArrayList<String>> userMap = currentProcess.userMap;
         Set<String> users = userMap.keySet();
         for (String addr: users) {
@@ -67,6 +68,15 @@ public class Server implements ProjectLib.CommitServing {
             e.printStackTrace();
         }
         voteTimeOutAbort(collageName);
+    }
+
+    private static void writePrepareLog(String filename, CommitProcess currentProcess) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(filename).append(":").append(3);
+        // sb.append(filename).append(",");
+        serverLog.writeObjToLog(0, currentProcess);
+        serverLog.writeLogs(0, sb.toString());
+        System.out.println("write prepare log: " + filename);
     }
 
     public static String[] convertToSources(ConcurrentHashMap<String, ArrayList<String>> userMap, String addr) {
@@ -327,7 +337,6 @@ public class Server implements ProjectLib.CommitServing {
             if (checkAckNum(ackMap)) {
                 // COMMIT FINISHED
                 System.out.println("commit about " + collageName + " finished!, result is: "+ currentProcess.succeeded);
-                writeFinLog(collageName);
                 processMap.remove(collageName);
             }
         } else {
@@ -336,12 +345,6 @@ public class Server implements ProjectLib.CommitServing {
 
     }
 
-    public static void writeFinLog(String collageName) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(collageName).append(":").append(2);
-        // serverLog.writeObjToLog(0, null);
-        serverLog.writeLogs(0, sb.toString());
-    }
 
     public static boolean reboot() {
         String rebootType = null;
@@ -349,6 +352,7 @@ public class Server implements ProjectLib.CommitServing {
             String logContent = serverLog.readLogs(0);
             String[] tmp = logContent.split(":");
             int opcode = Integer.parseInt(tmp[1].strip());
+            System.out.println("log is: " + logContent + "opcode" + opcode);
             if (opcode == 1 || opcode == -1) {
 
                 String collageName = tmp[0];
@@ -362,6 +366,8 @@ public class Server implements ProjectLib.CommitServing {
 
                 sendDecisionOnReboot(decision, rebootProcess);
                 return true;
+            } else if (opcode == 3) {
+                return abortOnReboot(tmp);
             }
             System.out.println("log exists but not fit");
             return false;
@@ -369,11 +375,17 @@ public class Server implements ProjectLib.CommitServing {
         return true;
     }
 
-    private static boolean abortOnReboot(String[] rebootStrArr) {
+    private static boolean abortOnReboot(String[] tmp) {
         System.out.println("server reboot(): PREPARE");
-        String collageName = rebootStrArr[1];
-        String[] sources = (String[]) serverLog.readObjFromLog(0);
-        CommitProcess rebootProcess = new CommitProcess(collageName, null, sources);
+        String collageName = tmp[0];
+        CommitProcess rebootProcess = null;
+        try {
+            rebootProcess = (CommitProcess) serverLog.readObjFromLog(0);
+
+        } catch (Exception e) {
+            System.out.println("cannot cast, wrong obj!!!");
+            return false;
+        }
         processMap.put(collageName, rebootProcess);
         rebootProcess.succeeded = false;
         rebootProcess.aborted = true;

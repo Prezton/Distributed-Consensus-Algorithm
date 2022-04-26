@@ -11,7 +11,7 @@ public class LogOperations {
         this.pl = pl;
     }
 
-    public void writeLogs(int type, String contents) {
+    public synchronized void writeLogs(int type, String contents) {
         String logName = null;
         if (type == 1) {
             logName = userLog;
@@ -30,7 +30,7 @@ public class LogOperations {
 
     }
 
-    public String readLogs(int type) {
+    public synchronized String readLogs(int type) {
         String logName = null;
         if (type == 1) {
             logName = userLog;
@@ -53,7 +53,7 @@ public class LogOperations {
         return null;
     }
 
-    public void writeObjToLog(int type, Object obj) {
+    public synchronized void writeObjToLog(int type, Object obj) {
         String logName = null;
         if (type == 1) {
             logName = userObjLog;
@@ -71,7 +71,7 @@ public class LogOperations {
         pl.fsync();
     }
 
-    public Object readObjFromLog(int type) {
+    public synchronized Object readObjFromLog(int type) {
         String logName = null;
         if (type == 1) {
             logName = userObjLog;
