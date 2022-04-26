@@ -206,23 +206,22 @@ public class Server implements ProjectLib.CommitServing {
 
         currentProcess.timeStamp = System.currentTimeMillis();
         Timer ackChecker = new Timer();
-        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 3000L, 6000L);
+        ackChecker.scheduleAtFixedRate(new CheckAckTimeOut(decision, currentProcess), 6000L, 6000L);
     }
 
     private static void writeDecisionLog(boolean decision, CommitProcess currentProcess) {
-        StringBuilder sb = new StringBuilder();
         currentProcess.succeeded = decision;
         int decisionInt;
         if (decision) {
             decisionInt = 1;
         } else {
-            decisionInt = 0;
+            decisionInt = -1;
         }
         String collageName = currentProcess.collageName;
-        sb.append("DECISION").append(",").append(collageName).append(",").append(decisionInt);
+        String decisionToWrite = collageName + ":" + decisionInt;
         serverLog.writeObjToLog(0, currentProcess);
-        serverLog.writeLogs(0, sb.toString());
-        System.out.println("WRITE DECISION LOG ABOUT: " + collageName + " is " + decision);
+        serverLog.writeLogs(0, decisionToWrite);
+        System.out.println("WRITE COMMIT LOG ABOUT: " + collageName + " is " + decision);
 
     }
 
@@ -344,21 +343,20 @@ public class Server implements ProjectLib.CommitServing {
 
     public static void writeFinLog(String collageName) {
         StringBuilder sb = new StringBuilder();
-        sb.append("FIN").append(",").append(collageName);
-        serverLog.writeObjToLog(0, null);
+        sb.append(collageName).append(":").append(2);
+        // serverLog.writeObjToLog(0, null);
         serverLog.writeLogs(0, sb.toString());
     }
 
     public static boolean reboot() {
         String rebootType = null;
         if ((new File("serverLog")).exists()) {
-            String[] rebootStrArr = (serverLog.readLogs(0)).split(",");
-            rebootType = rebootStrArr[0];
-            if (rebootType.equals("PREPARE")) {
-                return abortOnReboot(rebootStrArr);
-            } else if (rebootType.equals("DECISION")) {
+            String logContent = serverLog.readLogs(0);
+            String[] tmp = logContent.split(":");
+            int opcode = Integer.parseInt(tmp[1].strip());
+            if (opcode == 1 || opcode == -1) {
 
-                String collageName = rebootStrArr[1];
+                String collageName = tmp[0];
                 CommitProcess rebootProcess = (CommitProcess) serverLog.readObjFromLog(0);
                 boolean decision;
                 decision = rebootProcess.succeeded;

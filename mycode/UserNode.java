@@ -59,14 +59,14 @@ public class UserNode {
 
     private static void writeVoteLog(boolean voteReulst, MyMessage myMessage) {
         StringBuilder sb = new StringBuilder();
-        int intResult = -1;
+        int intResult = 0;
         if (voteReulst) {
             intResult = 1;
         } else {
-            intResult = 0;
+            intResult = -1;
         }
         String[] files = myMessage.sources;
-        sb.append("VOTE").append(",").append(myMessage.collageName).append(",").append(intResult);
+        sb.append(myMessage.collageName).append(":").append(intResult);
         userLog.writeLogs(1, sb.toString());
         userLog.writeObjToLog(1, files);
         System.err.println(clientID + " write User vote log");
@@ -75,7 +75,6 @@ public class UserNode {
     public static void decisionHandler(String srcName, MyMessage myMessage) {
         System.err.println(clientID + "'s decisionHandler: decision from " + srcName + " about " + myMessage.collageName + " is " + myMessage.boolResult);
         boolean commitDecision = myMessage.boolResult;
-        writeDecisionLog(myMessage);
         if (commitDecision) {
             // If decision is commit, delete local file
             String[] sources = myMessage.sources;
@@ -101,21 +100,6 @@ public class UserNode {
         sendACK(myMessage);
     }
 
-    private static void writeDecisionLog(MyMessage myMessage) {
-        StringBuilder sb = new StringBuilder();
-        int decisionInt;
-        if (myMessage.boolResult) {
-            decisionInt = 1;
-        } else {
-            decisionInt = 0;
-        }
-        String collageName = myMessage.collageName;
-        String[] files = myMessage.sources;
-        sb.append("DECISION").append(",").append(collageName).append(",").append(decisionInt);
-        userLog.writeLogs(1, sb.toString());
-        userLog.writeObjToLog(1, files);
-        System.err.println(clientID + " WRITE USER DECISION LOG: " + myMessage.boolResult);
-    }
 
     public static void sendACK(MyMessage receivedMessage) {
         System.err.println(clientID + "'s sendACK()");
@@ -128,58 +112,15 @@ public class UserNode {
     public static void reboot() {
         String rebootType = null;
         if ((new File("userLog")).exists()) {
-            String[] rebootStrArr = (userLog.readLogs(1)).split(",");
-            rebootType = rebootStrArr[0];
-            if (rebootType.equals("VOTE")) {
+            String logContent = userLog.readLogs(1);
+            String[] tmp = logContent.split(":");
+            int opcode = Integer.parseInt(tmp[1].strip());
+            if (opcode == 1) {
                 System.err.println(clientID + " USER NODE REBOOT(): VOTE");
-                String collageName = rebootStrArr[1];
-                boolean voteResult;   
+                String collageName = tmp[0];
                 String[] sources = (String[]) userLog.readObjFromLog(1);
-
-
-                if (Integer.parseInt(rebootStrArr[2].strip()) == 1) {
-                    voteResult = true;
-                } else {
-                    voteResult = false;
-                }
                 MyMessage myMessage = new MyMessage(1, collageName, null, sources);
-                if (voteResult) {
-                    lockFile(myMessage);
-                }
-            } else if (rebootType.equals("DECISION")) {
-                System.err.println(clientID + " USER NODE REBOOT(): DECISION");
-
-                String collageName = rebootStrArr[1];
-                boolean commitDecision;
-                String[] sources = (String[]) userLog.readObjFromLog(1);
-                if (Integer.parseInt(rebootStrArr[2].strip()) == 1) {
-                    commitDecision = true;
-                } else {
-                    commitDecision = false;
-                }
-                MyMessage myMessage = new MyMessage(3, collageName, null, sources);
-                writeDecisionLog(myMessage);
-                if (commitDecision) {
-                    // If decision is commit, delete local file
-                    for (String tmpString: sources) {
-                        String fileName = tmpString;
-                        File subFile = new File(fileName);
-                        System.err.println(clientID + "'s DELETE: " + fileName);
-                        subFile.delete();
-                    }
-                } else {
-                    // If decision is abort, unlock the files in invalid commit
-                    sources = (String[]) userLog.readObjFromLog(1);
-                    for (String tmpString: sources) {
-                        String fileName = tmpString;
-                        if (lockedFile.containsKey(fileName)) {
-                            // POTENTIAL PROBLEM HERE!!! MAY REMOVE FILE LOCKED BY OTHER COMMITS!!!
-                            // Could add a map to bind locked files with the corresponding commit!!!
-                            lockedFile.remove(fileName);
-                        }
-                        
-                    }
-                }
+                lockFile(myMessage);
             }
         }
     }
